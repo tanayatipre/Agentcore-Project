@@ -4,3 +4,7 @@ __pycache__/
 .env
 bedrock_agentcore/
 *.log
+
+neo_accessKeys.csv
+neo_credentials.csv
+TODO.md

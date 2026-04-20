@@ -4,20 +4,20 @@ agents:
     name: agentcore_lang_runtime
     language: python
     node_version: '20'
-    entrypoint: C:/Users/Tanaya/Downloads/Projects/agentcore-project/01_agentcore_runtime.py
-    deployment_type: container
-    runtime_type: null
+    entrypoint: E:/Coding/Agentcore-Project/01_agentcore_runtime.py
+    deployment_type: direct_code_deploy
+    runtime_type: PYTHON_3_13
     platform: linux/arm64
-    container_runtime: none
-    source_path: C:\Users\Tanaya\Downloads\Projects\agentcore-project
+    container_runtime: null
+    source_path: E:\Coding\Agentcore-Project
     aws:
       execution_role: arn:aws:iam::824708342420:role/AmazonBedrockAgentCoreSDKRuntime-us-east-1-c980c3716d
       execution_role_auto_create: false
       account: '824708342420'
       region: us-east-1
-      ecr_repository: 824708342420.dkr.ecr.us-east-1.amazonaws.com/bedrock-agentcore-agentcore_lang_runtime
+      ecr_repository: null
       ecr_auto_create: false
-      s3_path: null
+      s3_path: s3://bedrock-agentcore-codebuild-sources-824708342420-us-east-1
       s3_auto_create: false
       network_configuration:
         network_mode: PUBLIC
@@ -30,13 +30,13 @@ agents:
         idle_runtime_session_timeout: null
         max_lifetime: null
     bedrock_agentcore:
-      agent_id: null
-      agent_arn: null
-      agent_session_id: null
+      agent_id: agentcore_lang_runtime-bbdk3E3CvG
+      agent_arn: arn:aws:bedrock-agentcore:us-east-1:824708342420:runtime/agentcore_lang_runtime-bbdk3E3CvG
+      agent_session_id: 54111803-8773-43a8-b0d8-918f06510dfc
     codebuild:
-      project_name: bedrock-agentcore-agentcore_lang_runtime-builder
-      execution_role: arn:aws:iam::824708342420:role/AmazonBedrockAgentCoreSDKCodeBuild-us-east-1-c980c3716d
-      source_bucket: bedrock-agentcore-codebuild-sources-824708342420-us-east-1
+      project_name: null
+      execution_role: null
+      source_bucket: null
     memory:
       mode: NO_MEMORY
       memory_id: null

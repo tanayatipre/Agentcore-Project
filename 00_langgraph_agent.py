@@ -1,15 +1,14 @@
 import csv
 import os
 from typing import List
-from typing_extensions import TypedDict
 
 from langchain_core.documents import Document
 from langchain_core.tools import tool
+from langchain_core.vectorstores import InMemoryVectorStore
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_aws import BedrockEmbeddings
 from langchain_groq import ChatGroq
-from langchain_community.vectorstores import FAISS
 
 from dotenv import load_dotenv
 from langchain.agents import create_agent
@@ -27,12 +26,14 @@ def load_faq_csv(path: str) -> List[Document]:
     return docs
 
 docs = load_faq_csv("./lauki_qna.csv")
-emb = HuggingFaceEmbeddings(
-    model_name="sentence-transformers/all-MiniLM-L6-v2",
+emb = BedrockEmbeddings(
+    model_id="amazon.titan-embed-text-v2:0",
+    region_name=os.getenv("AWS_REGION", "us-east-1"),
 )
 splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=0)
 chunks = splitter.split_documents(docs)
-store = FAISS.from_documents(chunks, emb)
+store = InMemoryVectorStore(embedding=emb)
+store.add_documents(chunks)
 
 @tool
 def search_faq(query: str) -> str:
