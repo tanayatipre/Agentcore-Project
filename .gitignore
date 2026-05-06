@@ -1,7 +1,8 @@
-.venv/
+venv/
 __pycache__/
 *.pyc
 .env
+faiss_index/
 bedrock_agentcore/
 *.log
 
