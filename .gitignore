@@ -9,3 +9,4 @@ neo_accessKeys.csv
 neo_credentials.csv
 TODO.md
 .venv
+.bedrock_agentcore/agent_with_memory/dependencies.zip
