@@ -1,56 +1,81 @@
 import csv
 import os
+from functools import lru_cache
 from typing import List
+
+from dotenv import load_dotenv
 
 from langchain_core.documents import Document
 from langchain_core.tools import tool
-from langchain_core.vectorstores import InMemoryVectorStore
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+from langchain_community.vectorstores import FAISS
 from langchain_aws import BedrockEmbeddings
-from langchain_groq import ChatGroq
 
-from dotenv import load_dotenv
+from langchain_groq import ChatGroq
 from langchain.agents import create_agent
 
-_ = load_dotenv()
+load_dotenv()
+
+# Load FAQ CSV
 
 def load_faq_csv(path: str) -> List[Document]:
     docs = []
+
     with open(path, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
+
         for row in reader:
             q = row["question"].strip()
             a = row["answer"].strip()
-            docs.append(Document(page_content=f"Q: {q}\nA: {a}"))
+
+            docs.append(
+                Document(
+                    page_content=f"Q: {q}\nA: {a}"
+                )
+            )
+
     return docs
 
-docs = load_faq_csv("./lauki_qna.csv")
-emb = BedrockEmbeddings(
-    model_id="amazon.titan-embed-text-v2:0",
-    region_name=os.getenv("AWS_REGION", "us-east-1"),
-)
-splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=0)
-chunks = splitter.split_documents(docs)
-store = InMemoryVectorStore(embedding=emb)
-store.add_documents(chunks)
+
+# Load FAISS vectorstore
+
+@lru_cache
+def get_vectorstore():
+    embeddings = BedrockEmbeddings(
+        model_id="amazon.titan-embed-text-v2:0",
+        region_name="us-east-1"
+    )
+
+    vectorstore = FAISS.load_local(
+        "faiss_index",
+        embeddings,
+        allow_dangerous_deserialization=True
+    )
+
+    return vectorstore
+
+
+# Tool 1
 
 @tool
 def search_faq(query: str) -> str:
-    """Search the FAQ knowledge base for relevant information.
-    Use this tool when the user asks questions about products, services, or policies.
-    
-    Args:
-        query: The search query to find relevant FAQ entries
-        
-    Returns: 
-        Relevant FAQ entries that might answer the question
     """
+    Search the FAQ knowledge base for relevant information.
+
+    Args:
+        query: User question
+
+    Returns:
+        Relevant FAQ entries
+    """
+
+    store = get_vectorstore()
+
     results = store.similarity_search(query, k=3)
 
     if not results:
         return "No relevant FAQ entries found."
-    
+
     context = "\n\n---\n\n".join([
         f"FAQ Entry {i+1}:\n{doc.page_content}"
         for i, doc in enumerate(results)
@@ -59,24 +84,28 @@ def search_faq(query: str) -> str:
     return f"Found {len(results)} relevant FAQ entries:\n\n{context}"
 
 
+# Tool 2
+
 @tool
 def search_detailed_faq(query: str, num_results: int = 5) -> str:
-    """Search the FAQ knowledge base with more results for complex queries.
-    Use this when the initial search doesn't provide enough information.
-    
-    Args:
-        query: The search query
-        num_results: Number of results to retrieve (default: 5)
-        
-    Returns: 
-        More comprehensive FAQ entries
     """
+    Search FAQ knowledge base with more results.
+
+    Args:
+        query: User question
+        num_results: Number of results
+
+    Returns:
+        Detailed FAQ entries
+    """
+
+    store = get_vectorstore()
 
     results = store.similarity_search(query, k=num_results)
 
     if not results:
         return "No relevant FAQ entries found."
-    
+
     context = "\n\n---\n\n".join([
         f"FAQ Entry {i+1}:\n{doc.page_content}"
         for i, doc in enumerate(results)
@@ -85,24 +114,30 @@ def search_detailed_faq(query: str, num_results: int = 5) -> str:
     return f"Found {len(results)} detailed FAQ entries:\n\n{context}"
 
 
+# Tool 3
+
 @tool
 def reformulate_query(original_query: str, focus_aspect: str) -> str:
-    """Reformulate the query to focus on a specific aspect.
-    Use this when you need to search for a different angle of the question.
+    """
+    Reformulate query for a specific aspect and search again.
 
     Args:
-        original_query: The original user question
-        focus_aspect: The specific aspect to focus on (e.g., "pricing", "activation", "troubleshooting")
-        
+        original_query: Original user question
+        focus_aspect: Specific angle to search
+
     Returns:
-        A reformulated query focused on the specified aspect
+        Reformulated search results
     """
+
+    store = get_vectorstore()
+
     reformulated = f"{focus_aspect} related to {original_query}"
+
     results = store.similarity_search(reformulated, k=3)
 
     if not results:
         return f"No results found for aspect: {focus_aspect}"
-    
+
     context = "\n\n---\n\n".join([
         f"Entry {i+1}:\n{doc.page_content}"
         for i, doc in enumerate(results)
@@ -110,7 +145,17 @@ def reformulate_query(original_query: str, focus_aspect: str) -> str:
 
     return f"Results for '{focus_aspect}' aspect:\n\n{context}"
 
-tools = [search_faq, search_detailed_faq, reformulate_query]
+
+# Tool list
+
+tools = [
+    search_faq,
+    search_detailed_faq,
+    reformulate_query
+]
+
+
+# LLM
 
 model = ChatGroq(
     model="openai/gpt-oss-20b",
@@ -118,19 +163,25 @@ model = ChatGroq(
     api_key=os.getenv("GROQ_API_KEY")
 )
 
-system_prompt = """You are a helpful FAQ assistant with access to a knowledge base.
+
+# System prompt
+
+system_prompt = """
+You are a helpful FAQ assistant with access to a knowledge base.
 
 Your goal is to answer user questions accurately using the available tools.
 
 Guidelines:
-1. Start by using the search_faq tool to find relevant information
-2. If the initial search doesn't provide enough info, use search_detailed_faq for more results
-3. If the query is complex, use reformulate_query to search different aspects
-4. Synthesize information from multiple tool calls if needed
-5. Always provide a clear, concise answer based on the retrieved information
-6. If you cannot find relevant infomration, clearly state that
+1. Start by using the search_faq tool
+2. If needed, use search_detailed_faq
+3. Use reformulate_query for complex queries
+4. Combine information from multiple searches
+5. Keep responses clear and concise
+6. If no information is found, clearly say so
+"""
 
-Think step-by-step and use tools strategically to provide the best answer."""
+
+# Create agent
 
 agent = create_agent(
     model=model,
@@ -138,7 +189,15 @@ agent = create_agent(
     system_prompt=system_prompt
 )
 
-if __name__ == "__main__":
-    result = agent.invoke({"messages": [("human", "Explain roaming activation.")]})
-    print(result['messages'][-1].content)
 
+# Run locally
+
+if __name__ == "__main__":
+
+    result = agent.invoke({
+        "messages": [
+            ("human", "Explain roaming activation.")
+        ]
+    })
+
+    print(result["messages"][-1].content)

@@ -1,13 +1,11 @@
-import csv
 import os
-from typing import List
+from functools import lru_cache
 
-from langchain_core.documents import Document
 from langchain_core.tools import tool
-from langchain_core.vectorstores import InMemoryVectorStore
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+from langchain_community.vectorstores import FAISS
 from langchain_aws import BedrockEmbeddings
+
 from langchain_groq import ChatGroq
 
 from dotenv import load_dotenv
@@ -16,48 +14,52 @@ from langchain.agents import create_agent
 # Import AgentCore runtime
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 
-# Create the Agentcore app instance
+# Create the AgentCore app instance
 app = BedrockAgentCoreApp()
 
+# Load environment variables
+load_dotenv()
 
-_ = load_dotenv()
+# Config
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-def load_faq_csv(path: str) -> List[Document]:
-    docs = []
-    with open(path, "r", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            q = row["question"].strip()
-            a = row["answer"].strip()
-            docs.append(Document(page_content=f"Q: {q}\nA: {a}"))
-    return docs
+# Load FAISS Index (precomputed)
 
-docs = load_faq_csv("./lauki_qna.csv")
-emb = BedrockEmbeddings(
-    model_id="amazon.titan-embed-text-v2:0",
-    region_name=os.getenv("AWS_REGION", "us-east-1"),
-)
-splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=0)
-chunks = splitter.split_documents(docs)
-store = InMemoryVectorStore(embedding=emb)
-store.add_documents(chunks)
+@lru_cache
+def get_vectorstore():
+    print("Loading embeddings...")
+
+    embeddings = BedrockEmbeddings(
+        model_id="amazon.titan-embed-text-v2:0",
+        region_name="us-east-1"
+    )
+
+    print("Loading FAISS index...")
+
+    vectorstore = FAISS.load_local(
+        "faiss_index",
+        embeddings,
+        allow_dangerous_deserialization=True
+    )
+
+    print("FAISS loaded")
+
+    return vectorstore
+
+
+# Tools (RAG-based)
 
 @tool
 def search_faq(query: str) -> str:
-    """Search the FAQ knowledge base for relevant information.
-    Use this tool when the user asks questions about products, services, or policies.
-    
-    Args:
-        query: The search query to find relevant FAQ entries
-        
-    Returns: 
-        Relevant FAQ entries that might answer the question
-    """
+    """Search FAQ data using semantic similarity."""
+
+    store = get_vectorstore()
+
     results = store.similarity_search(query, k=3)
 
     if not results:
         return "No relevant FAQ entries found."
-    
+
     context = "\n\n---\n\n".join([
         f"FAQ Entry {i+1}:\n{doc.page_content}"
         for i, doc in enumerate(results)
@@ -68,22 +70,15 @@ def search_faq(query: str) -> str:
 
 @tool
 def search_detailed_faq(query: str, num_results: int = 5) -> str:
-    """Search the FAQ knowledge base with more results for complex queries.
-    Use this when the initial search doesn't provide enough information.
-    
-    Args:
-        query: The search query
-        num_results: Number of results to retrieve (default: 5)
-        
-    Returns: 
-        More comprehensive FAQ entries
-    """
+    """Search FAQ with more results."""
+
+    store = get_vectorstore()
 
     results = store.similarity_search(query, k=num_results)
 
     if not results:
         return "No relevant FAQ entries found."
-    
+
     context = "\n\n---\n\n".join([
         f"FAQ Entry {i+1}:\n{doc.page_content}"
         for i, doc in enumerate(results)
@@ -94,22 +89,17 @@ def search_detailed_faq(query: str, num_results: int = 5) -> str:
 
 @tool
 def reformulate_query(original_query: str, focus_aspect: str) -> str:
-    """Reformulate the query to focus on a specific aspect.
-    Use this when you need to search for a different angle of the question.
+    """Reformulate query for a specific aspect and search."""
 
-    Args:
-        original_query: The original user question
-        focus_aspect: The specific aspect to focus on (e.g., "pricing", "activation", "troubleshooting")
-        
-    Returns:
-        A reformulated query focused on the specified aspect
-    """
+    store = get_vectorstore()
+
     reformulated = f"{focus_aspect} related to {original_query}"
+
     results = store.similarity_search(reformulated, k=3)
 
     if not results:
         return f"No results found for aspect: {focus_aspect}"
-    
+
     context = "\n\n---\n\n".join([
         f"Entry {i+1}:\n{doc.page_content}"
         for i, doc in enumerate(results)
@@ -117,15 +107,25 @@ def reformulate_query(original_query: str, focus_aspect: str) -> str:
 
     return f"Results for '{focus_aspect}' aspect:\n\n{context}"
 
-tools = [search_faq, search_detailed_faq, reformulate_query]
+
+tools = [
+    search_faq,
+    search_detailed_faq,
+    reformulate_query
+]
+
+# LLM
 
 model = ChatGroq(
     model="openai/gpt-oss-20b",
     temperature=0,
-    api_key=os.getenv("GROQ_API_KEY")
+    api_key=GROQ_API_KEY
 )
 
-system_prompt = """You are a helpful FAQ assistant with access to a knowledge base.
+# System Prompt
+
+system_prompt = """
+You are a helpful FAQ assistant with access to a knowledge base.
 
 Your goal is to answer user questions accurately using the available tools.
 
@@ -135,9 +135,12 @@ Guidelines:
 3. If the query is complex, use reformulate_query to search different aspects
 4. Synthesize information from multiple tool calls if needed
 5. Always provide a clear, concise answer based on the retrieved information
-6. If you cannot find relevant infomration, clearly state that
+6. If you cannot find relevant information, clearly state that
 
-Think step-by-step and use tools strategically to provide the best answer."""
+Think step-by-step and use tools strategically to provide the best answer.
+"""
+
+# Create Agent
 
 agent = create_agent(
     model=model,
@@ -146,22 +149,41 @@ agent = create_agent(
 )
 
 # AgentCore Entrypoint
+
 @app.entrypoint
 def agent_invocation(payload, context):
     """Handler for agent invocation in AgentCore runtime."""
+
     print("Received payload:", payload)
     print("Context:", context)
 
     # Extract query from payload
-    query = payload.get("prompt", "No prompt found in input")
+    query = payload.get("prompt", "")
 
-    # Invoke the graph
-    result = agent.invoke({"messages": [("human", query)]})
+    # Invoke the agent
+    result = agent.invoke(
+        {
+            "messages": [
+                ("human", query)
+            ]
+        }
+    )
 
     print("Result:", result)
 
-    return {"result": result['messages'][-1].content}
+    messages = result.get("messages", [])
+
+    answer = (
+        messages[-1].content
+        if messages
+        else "No response generated"
+    )
+
+    return {
+        "result": answer
+    }
+
 
 if __name__ == "__main__":
+    print("Starting app...")
     app.run()
-

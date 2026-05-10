@@ -6,7 +6,7 @@ from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from langchain_community.vectorstores import FAISS
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_aws import BedrockEmbeddings
 
 import certifi
 import ssl
@@ -49,36 +49,45 @@ def main():
     
     print(f"Loaded {len(docs)} documents")
 
-    # Split into chunks
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=500,
-        chunk_overlap=50
+    # We skip text splitting because each FAQ row (Q & A) is already an ideal, atomic chunk.
+    # Splitting them would increase API calls unnecessarily and potentially break context.
+    chunks = docs
+    print(f"Using {len(chunks)} chunks (1 per FAQ)")
+
+    # Reverting to BedrockEmbeddings because local HuggingFace models bring in PyTorch, 
+    # which exceeds the 250MB AWS Lambda deployment limit for AgentCore.
+    bedrock_region = os.getenv("BEDROCK_REGION", "us-east-1")
+    embeddings = BedrockEmbeddings(
+        model_id="amazon.titan-embed-text-v2:0",
+        region_name=bedrock_region
     )
 
-    chunks = splitter.split_documents(docs)
-    print(f"Created {len(chunks)} chunks")
-
-    # Embeddings: create with simple retry to surface SSL/client errors clearly
-    embeddings = None
-    last_exc = None
-    for attempt in range(3):
-        try:
-            embeddings = HuggingFaceEmbeddings(
-                model_name="BAAI/bge-small-en-v1.5"
-            )
-            break
-        except Exception as e:
-            last_exc = e
-            print(f"Attempt {attempt+1} to create embeddings failed: {e}")
-            traceback.print_exc()
-            time.sleep(1 + attempt * 2)
-
-    if embeddings is None:
-        print("Failed to create HuggingFaceEmbeddings after retries.")
-        raise last_exc
-
     print("Creating FAISS index...")
-    vectorstore = FAISS.from_documents(chunks, embeddings)
+    # Because of AWS rate limits (ThrottlingException), we must process the embeddings 
+    # sequentially with a small delay. This will take ~15-20 minutes but guarantees success.
+    texts = [doc.page_content for doc in chunks]
+    metadatas = [doc.metadata for doc in chunks]
+    all_embeddings = []
+
+    print(f"Embedding {len(texts)} documents sequentially to respect AWS rate limits...")
+    for i, text in enumerate(texts):
+        for attempt in range(5):
+            try:
+                emb = embeddings.embed_query(text)
+                all_embeddings.append(emb)
+                break
+            except Exception as e:
+                # If throttled, sleep and retry
+                time.sleep(2 + attempt)
+        else:
+            raise Exception(f"Failed to embed document {i} after 5 retries.")
+            
+        if i % 100 == 0 and i > 0:
+            print(f"Progress: {i}/{len(texts)}", end="\\r")
+
+    print(f"\\nFinished generating {len(all_embeddings)} embeddings. Building FAISS vectorstore...")
+    text_embedding_pairs = list(zip(texts, all_embeddings))
+    vectorstore = FAISS.from_embeddings(text_embedding_pairs, embeddings, metadatas=metadatas)
 
     # save locally
     vectorstore.save_local("./faiss_index")

@@ -7,10 +7,16 @@ requires-python = ">=3.13"
 dependencies = [
     "bedrock-agentcore>=1.0.7",
     "bedrock-agentcore-starter-toolkit>=0.2.0",
+    "langchain>=0.3.0",
+    "langchain-aws>=0.2.0",
     "langchain-community>=0.4.1",
+    "langchain-core>=0.3.0",
     "langchain-groq>=1.1.0",
     "langchain[aws]>=1.1.0",
     "langgraph>=1.0.4",
     "langgraph-checkpoint-aws>=1.0.1",
     "python-dotenv>=1.1.1",
+    "faiss-cpu>=1.11.0",
+    "streamlit>=1.57.0",
+    "requests>=2.33.1",
 ]

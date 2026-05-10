@@ -1,9 +1,8 @@
 import os
+import argparse
 import uuid
 from functools import lru_cache
-from typing import List
 
-from langchain_core.documents import Document
 from langchain_core.tools import tool
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.runnables import RunnableConfig
@@ -14,8 +13,8 @@ from langchain.agents import create_agent
 from langgraph.store.base import BaseStore
 
 # FAISS + HF Embeddings
-from langchain.vectorstores import FAISS
-from langchain.embeddings import HuggingFaceEmbeddings
+from langchain_community.vectorstores import FAISS
+from langchain_aws import BedrockEmbeddings
 
 # Agentcore
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
@@ -30,22 +29,41 @@ app = BedrockAgentCoreApp()
 # Config
 Region = "us-east-1"
 MEMORY_ID = "customer_care_agent_memory-369OL1GRbv"
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+
+import boto3
+def get_groq_api_key():
+    local_key = os.getenv("GROQ_API_KEY")
+    if local_key:
+        return local_key
+    try:
+        ssm = boto3.client('ssm', region_name=Region)
+        response = ssm.get_parameter(Name='/agentcore/GROQ_API_KEY', WithDecryption=True)
+        return response['Parameter']['Value']
+    except Exception as e:
+        print(f"Failed to fetch GROQ_API_KEY from SSM: {e}")
+        return None
+
+GROQ_API_KEY = get_groq_api_key()
+
+print("Starting app...")
 
 # Load FAISS Index (precomputed)
 
 @lru_cache
 def get_vectorstore():
-    embeddings = HuggingFaceEmbeddings(
-        model_name="BAAI/bge-small-en-v1.5"
+    print("Loading embeddings...")
+    embeddings = BedrockEmbeddings(
+        model_id="amazon.titan-embed-text-v2:0",
+        region_name=Region
     )
+    print("Loading FAISS index...")
 
     vectorstore = FAISS.load_local(
         "faiss_index",
         embeddings,
         allow_dangerous_deserialization=True
     )
-
+    print("FAISS loaded")
     return vectorstore
 
 # Tools (Rag-based)
@@ -82,39 +100,60 @@ def search_detailed_faq(query: str, num_results: int = 5) -> str:
     return f"Found {len(results)} detailed FAQ entries:\n\n{context}"
 
 @tool
-def reformulate_query(original_query: str, focus_aspec: str) -> str:
+def reformulate_query(original_query: str, focus_aspect: str) -> str:
     """Reformulate query for a specific aspect and search."""
+    
     store = get_vectorstore()
 
     reformulated = f"{focus_aspect} related to {original_query}"
+
     results = store.similarity_search(reformulated, k=3)
-    
+
     if not results:
         return f"No results found for aspect: {focus_aspect}"
-    
+
     context = "\n\n---\n\n".join([
         f"Entry {i+1}:\n{doc.page_content}"
         for i, doc in enumerate(results)
     ])
 
-    return f"Results for '{focus_aspect}'
-aspect:\n\n{context}"
-
+    return f"Results for '{focus_aspect}' aspect:\n\n{context}"
+    
 tools = [search_faq, search_detailed_faq, reformulate_query]
 
 # Memory Middleware
+
+def clear_namespace_memory(store: BaseStore, namespace: tuple[str, ...]) -> int:
+    deleted = 0
+    while True:
+        items = store.search(namespace, query="", limit=100, offset=0)
+        if not items:
+            break
+        for item in items:
+            store.delete(namespace, item.key)
+        deleted += len(items)
+    return deleted
 
 class MemoryMiddleware(AgentMiddleware):
     def pre_model_hook(self, state: AgentState, config: RunnableConfig, *, store: BaseStore):
         actor_id = config["configurable"]["actor_id"]
         thread_id = config["configurable"]["thread_id"]
 
+        reset_memory = config["configurable"].get("reset_memory", False)
+
         namespace = (actor_id, thread_id)
         messages = state.get("messages", [])
 
-        # fetch recent memory 
-        past = store.search(namespace, query="", limit=5)
-        history = [item.value["message"] for item in past if "message" in item.value]
+        history = []
+        if reset_memory:
+            deleted = clear_namespace_memory(store, namespace)
+            print(f"Reset memory for {namespace}; deleted {deleted} items")
+            state["memory_reset"] = True
+            state["memory_reset_deleted"] = deleted
+        else:
+            # fetch recent memory
+            past = store.search(namespace, query="", limit=2)  # Reduced from 5 to 2 to save tokens
+            history = [item.value["message"] for item in past if "message" in item.value]
 
         for msg in reversed(messages):
             if isinstance(msg, HumanMessage):
@@ -122,7 +161,7 @@ class MemoryMiddleware(AgentMiddleware):
                 break
         return {"messages": history + messages}
     
-    def post_model_hook(self, state: config: RunnableConfig, *, store: BaseStore):
+    def post_model_hook(self, state: AgentState,config: RunnableConfig, *, store: BaseStore):
         actor_id = config["configurable"]["actor_id"]
         thread_id = config["configurable"]["thread_id"]
         
@@ -140,7 +179,7 @@ class MemoryMiddleware(AgentMiddleware):
 @lru_cache
 def get_llm():
     return init_chat_model(
-        model="openai/gpt-oss-20b",
+        model="openai/gpt-oss-120b",
         model_provider="groq",
         api_key=GROQ_API_KEY
     )
@@ -155,7 +194,7 @@ def get_agent():
         tools=tools,
         checkpointer=checkpointer,
         store=store,
-        middleware=[MemoryMiddleware()]
+        middleware=[MemoryMiddleware()],
         system_prompt="""you are a helpful FAQ assistant with memory.
     
     Use tools to answer questions.
@@ -172,11 +211,13 @@ def agent_invocation(payload, context):
 
     actor_id = payload.get("actor_id", "default-user")
     thread_id = payload.get("thread_id", "default-session")
+    reset_memory = bool(payload.get("reset_memory", False))
 
     config = {
         "configurable": {
             "thread_id": thread_id,
-            "actor_id": actor_id
+            "actor_id": actor_id,
+            "reset_memory": reset_memory
         }
     }
 
@@ -189,12 +230,33 @@ def agent_invocation(payload, context):
 
     messages = result.get("messages", [])
     answer = messages[-1].content if messages else "No response"
+    memory_reset = bool(result.get("memory_reset", False))
+    memory_reset_deleted = int(result.get("memory_reset_deleted", 0))
 
-    return {
+    response = {
         "result": answer,
         "actor_id": actor_id,
         "thread_id": thread_id
     }
 
+    if memory_reset:
+        response["memory_reset"] = True
+        response["memory_reset_deleted"] = memory_reset_deleted
+
+    return response
+
+print("Launching AgentCore runtime...")
 if __name__ == "__main__":
-    app.run()
+    parser = argparse.ArgumentParser(description="AgentCore runtime and memory utilities")
+    parser.add_argument("--reset-memory", action="store_true", help="Reset memory for actor/thread")
+    parser.add_argument("--actor-id", default="default-user", help="Actor ID namespace")
+    parser.add_argument("--thread-id", default="default-session", help="Thread ID namespace")
+    args = parser.parse_args()
+
+    if args.reset_memory:
+        store = AgentCoreMemoryStore(memory_id=MEMORY_ID)
+        namespace = (args.actor_id, args.thread_id)
+        deleted = clear_namespace_memory(store, namespace)
+        print(f"Reset memory for {namespace}; deleted {deleted} items")
+    else:
+        app.run()
