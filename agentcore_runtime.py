@@ -17,13 +17,13 @@ from bedrock_agentcore.runtime import BedrockAgentCoreApp
 # Create the AgentCore app instance
 app = BedrockAgentCoreApp()
 
-# Load environment variables
+# Load env
 load_dotenv()
 
 # Config
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-# Load FAISS Index (precomputed)
+# Load FAISS Index
 
 @lru_cache
 def get_vectorstore():

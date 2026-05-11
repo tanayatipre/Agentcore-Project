@@ -195,7 +195,7 @@ def get_agent():
         checkpointer=checkpointer,
         store=store,
         middleware=[MemoryMiddleware()],
-        system_prompt="""you are a helpful FAQ assistant with memory.
+        system_prompt="""You are a helpful FAQ assistant with memory.
     
     Use tools to answer questions.
     Always rely on retrieved FAQ data.
