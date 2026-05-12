@@ -13,7 +13,6 @@ import ssl
 import time
 import traceback
 
-# Ensure Python and other libraries use certifi's CA bundle for HTTPS
 os.environ["SSL_CERT_FILE"] = certifi.where()
 os.environ["REQUESTS_CA_BUNDLE"] = certifi.where()
 os.environ["CURL_CA_BUNDLE"] = certifi.where()
@@ -49,13 +48,9 @@ def main():
     
     print(f"Loaded {len(docs)} documents")
 
-    # We skip text splitting because each FAQ row (Q & A) is already an ideal, atomic chunk.
-    # Splitting them would increase API calls unnecessarily and potentially break context.
     chunks = docs
     print(f"Using {len(chunks)} chunks (1 per FAQ)")
 
-    # Reverting to BedrockEmbeddings because local HuggingFace models bring in PyTorch, 
-    # which exceeds the 250MB AWS Lambda deployment limit for AgentCore.
     bedrock_region = os.getenv("BEDROCK_REGION", "us-east-1")
     embeddings = BedrockEmbeddings(
         model_id="amazon.titan-embed-text-v2:0",
@@ -63,8 +58,7 @@ def main():
     )
 
     print("Creating FAISS index...")
-    # Because of AWS rate limits (ThrottlingException), we must process the embeddings 
-    # sequentially with a small delay. This will take ~15-20 minutes but guarantees success.
+
     texts = [doc.page_content for doc in chunks]
     metadatas = [doc.metadata for doc in chunks]
     all_embeddings = []
@@ -77,7 +71,6 @@ def main():
                 all_embeddings.append(emb)
                 break
             except Exception as e:
-                # If throttled, sleep and retry
                 time.sleep(2 + attempt)
         else:
             raise Exception(f"Failed to embed document {i} after 5 retries.")

@@ -2,10 +2,8 @@ import streamlit as st
 import requests
 import uuid
 
-# Set up the page with a dark theme and custom title
 st.set_page_config(page_title="FAQ Agent", page_icon="🔵", layout="centered", initial_sidebar_state="collapsed")
 
-# Custom CSS for a Persian blue aesthetic
 st.markdown("""
 <style>
 
@@ -14,18 +12,8 @@ st.markdown("""
     ========================== */
 
     .stApp {
-        background:
-            radial-gradient(circle at top left, rgba(88, 130, 255, 0.16), transparent 28%),
-            radial-gradient(circle at top right, rgba(120, 90, 255, 0.12), transparent 24%),
-            radial-gradient(circle at bottom left, rgba(0, 180, 255, 0.08), transparent 22%),
-            linear-gradient(
-                145deg,
-                #02050d 0%,
-                #06152b 42%,
-                #020814 100%
-            );
-
-        color: #eef4ff;
+        background: #F0EBE3;
+        color: #1A1A1A;
     }
 
     /* =========================
@@ -37,143 +25,107 @@ st.markdown("""
         flex-direction: column;
         align-items: center;
         justify-content: center;
-
         text-align: center;
     }
 
     .title-box {
         width: 94%;
         max-width: 1180px;
-
         margin: 2.7rem auto;
-
-        padding: 68px 58px;
-
-        border-radius: 30px;
-
-        background:
-            linear-gradient(
-                145deg,
-                rgba(8, 18, 38, 0.96),
-                rgba(5, 10, 24, 0.94)
-            );
-
-        border: 1px solid rgba(120, 170, 255, 0.14);
-
-        box-shadow:
-            0 20px 60px rgba(0,0,0,0.65),
-            inset 0 1px 0 rgba(255,255,255,0.03);
-
-        backdrop-filter: blur(18px);
+        padding: 58px 48px;
+        border-radius: 20px;
+        background: #FFFFFF;
+        border: 1px solid #E0DADA;
+        box-shadow: 0 12px 30px rgba(0,0,0,0.04);
     }
 
     .main-title {
-        font-size: clamp(2.4rem, 3vw + 1rem, 5rem);
-
+        font-size: clamp(2.4rem, 3vw + 1rem, 4.5rem);
         font-weight: 800;
-
         margin: 0;
-
-        color: #edf3ff;
-
-        line-height: 1.12;
-
+        color: #1A1A1A;
+        line-height: 1.15;
         letter-spacing: -1px;
-
         white-space: normal;
         word-break: break-word;
     }
 
     .main-title span {
-        color: #9bbcff;
         font-weight: 700;
+        color: #1A1A1A;
     }
 
     .subtitle {
-        margin-top: 1.4rem;
-
+        margin-top: 1.2rem;
         text-align: center;
-
-        color: #aab7cf;
-
-        font-size: 1.08rem;
-
-        line-height: 1.7;
+        color: #555555;
+        font-size: 1.1rem;
+        line-height: 1.6;
+        font-weight: 400;
     }
 
     /* =========================
-       SESSION TITLE
+       SESSION TITLE (CHIP/BADGE)
     ========================== */
 
     .session-title {
         position: fixed;
-
         top: 18px;
         left: 18px;
-
-        padding: 10px 14px;
-
-        border-radius: 14px;
-
-        background: rgba(8, 16, 30, 0.82);
-
-        border: 1px solid rgba(140, 180, 255, 0.12);
-
-        color: #dbe8ff;
-
-        font-size: 0.92rem;
-
-        box-shadow: 0 8px 22px rgba(0,0,0,0.4);
-
+        padding: 8px 16px;
+        border-radius: 20px;
+        background: #2A2A2A;
+        border: none;
+        color: #FFFFFF;
+        font-size: 0.9rem;
+        font-weight: 500;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
         z-index: 9999;
     }
 
     /* =========================
        CHAT MESSAGE BOXES
-       REMOVED DARK SOLID BOXES
     ========================== */
 
     div[data-testid="stChatMessage"] {
-        background: transparent !important;
-
-        border: none !important;
-
-        box-shadow: none !important;
-
-        padding: 0.2rem 0.4rem !important;
-
-        margin-bottom: 1rem !important;
-    }
-
-    div[data-testid="stChatMessage"] * {
-        color: #f4f7ff;
-    }
-
-    /* =========================
-       AVATAR / EMOJI COLORS
-       PASTEL COOL TONES
-    ========================== */
-
-    div[data-testid="stChatMessageAvatarUser"] {
-        background:
-            linear-gradient(
-                145deg,
-                #7ecbff,
-                #9ab8ff
-            ) !important;
-
         border-radius: 16px !important;
+        padding: 16px 20px !important;
+        margin-bottom: 1.2rem !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.03) !important;
+        border: 1px solid #E0DADA !important;
     }
 
+    div[data-testid="stChatMessage"]:nth-child(odd) {
+        /* User bubble */
+        background: #1E1E1E !important;
+        border-color: #1E1E1E !important;
+    }
+
+    div[data-testid="stChatMessage"]:nth-child(even) {
+        /* Assistant bubble */
+        background: #FFFFFF !important;
+    }
+
+    /* Specific text colors inside bubbles - avoid overriding avatar contents */
+    div[data-testid="stChatMessage"]:nth-child(odd) > div > div > div > div {
+        color: #FFFFFF !important;
+    }
+    div[data-testid="stChatMessage"]:nth-child(even) > div > div > div > div {
+        color: #1A1A1A !important;
+    }
+
+    /* Avatars - Both have white backgrounds and black icons */
+    div[data-testid="stChatMessageAvatarUser"],
     div[data-testid="stChatMessageAvatarAssistant"] {
-        background:
-            linear-gradient(
-                145deg,
-                #b89cff,
-                #8fd3ff
-            ) !important;
+        background: #FFFFFF !important;
+        color: #1A1A1A !important;
+        border: 1px solid #E0DADA !important;
+    }
 
-        border-radius: 16px !important;
+    div[data-testid="stChatMessageAvatarUser"] *,
+    div[data-testid="stChatMessageAvatarAssistant"] * {
+        color: #1A1A1A !important;
+        fill: #1A1A1A !important;
     }
 
     /* =========================
@@ -181,12 +133,12 @@ st.markdown("""
     ========================== */
 
     section[data-testid="stSidebar"] {
-        background:
-            linear-gradient(
-                180deg,
-                #081120,
-                #030711
-            );
+        background: #FFFFFF;
+        border-right: 1px solid #E0DADA;
+    }
+    
+    section[data-testid="stSidebar"] * {
+        color: #1A1A1A !important;
     }
 
     /* =========================
@@ -195,100 +147,72 @@ st.markdown("""
 
     .stChatInputContainer {
         background: transparent !important;
-
         border: none !important;
-
         box-shadow: none !important;
-
-        width: 100% !important;
-        display: flex !important;
-        align-items: center !important;
-        flex-wrap: nowrap !important;
+    }
+    
+    .stChatInput {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 0.8rem;
     }
 
     div[data-testid="stChatInput"] {
-        width: 100% !important;
-        display: flex !important;
-        align-items: center !important;
+        display: flex;
         flex-direction: row !important;
-        flex-wrap: nowrap !important;
-    }
-
-    div[data-testid="stChatInput"] > div {
-        width: 100% !important;
-
-        display: flex !important;
-
         align-items: center !important;
-
-        flex-direction: row !important;
-
-        flex-wrap: nowrap !important;
-
-        gap: 12px !important;
-
-        background: transparent !important;
-
-        border: none !important;
-
-        box-shadow: none !important;
+        width: 100%;
+        background: #FFFFFF !important;
+        border: 1px solid #E0DADA !important;
+        border-radius: 30px !important;
+        padding: 4px 6px !important;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.03) !important;
     }
-
-    div[data-testid="stChatInput"] form {
-        display: flex !important;
-        align-items: center !important;
-        flex-direction: row !important;
-        flex-wrap: nowrap !important;
-        gap: 12px !important;
-        width: 100% !important;
-        min-width: 0 !important;
-    }
-
+    
     div[data-testid="stChatInput"] textarea {
-        width: auto !important;
-
-        flex: 1 1 0 !important;
-
-        min-width: 0 !important;
-
-        min-height: 56px !important;
-
-        resize: none !important;
-
-        background: rgba(255, 255, 255, 0.16) !important;
-
-        color: #f5f8ff !important;
-
-        border-radius: 18px !important;
-
-        border: 1px solid rgba(130, 170, 255, 0.16) !important;
-
-        padding-top: 14px !important;
-
-        box-shadow:
-            0 8px 20px rgba(0,0,0,0.25) !important;
+        background: #F7F3EF !important;
+        color: #1A1A1A !important;
+        border-radius: 24px !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 14px 20px !important;
+        flex: 1 1 auto !important;
+        min-height: 48px !important;
+    }
+    
+    div[data-testid="stChatInput"] textarea::placeholder {
+        color: #9A9A9A !important;
+        opacity: 1 !important;
     }
 
-    div[data-testid="stChatInput"] button {
-        height: 52px !important;
-
-        width: 52px !important;
-
-        border-radius: 14px !important;
-
-        background:
-            linear-gradient(
-                145deg,
-                #88b6ff,
-                #7bd7ff
-            ) !important;
-
+    div[data-testid="stChatInput"] button,
+    div[data-testid="stChatInputSubmitButton"] button {
+        background: #1A1A1A !important;
+        border-radius: 50% !important;
         border: none !important;
-
-        box-shadow:
-            0 8px 18px rgba(0,0,0,0.25) !important;
-        flex: 0 0 auto !important;
+        color: #FFFFFF !important;
+        width: 44px !important;
+        height: 44px !important;
+        max-width: 44px !important;
+        min-width: 44px !important;
+        flex-shrink: 0 !important;
+        align-self: center !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1) !important;
+        transition: transform 0.15s ease;
         margin-left: 6px !important;
+    }
+    
+    div[data-testid="stChatInput"] button:hover {
+        transform: scale(1.05);
+    }
+    
+    div[data-testid="stChatInput"] button svg {
+        fill: #FFFFFF !important;
+        stroke: #FFFFFF !important;
     }
 
     /* =========================
@@ -337,7 +261,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize session identifiers and chat history
 if "actor_id" not in st.session_state:
     st.session_state.actor_id = f"ui-user-{uuid.uuid4().hex[:8]}"
 
@@ -382,16 +305,14 @@ with st.sidebar:
         st.session_state.messages = []
         st.rerun()
 
-# Display chat messages from history
 for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
+    avatar_icon = "👤" if msg["role"] == "user" else "🤖"
+    with st.chat_message(msg["role"], avatar=avatar_icon):
         st.markdown(msg["content"])
 
-# React to user input
 if prompt := st.chat_input("E.g., Can I use Jio sim?"):
-    # Display user message in chat message container
-    st.chat_message("user").markdown(prompt)
-    # Add user message to chat history
+    with st.chat_message("user", avatar="👤"):
+        st.markdown(prompt)
     st.session_state.messages.append({"role": "user", "content": prompt})
 
     if not st.session_state.session_title:
@@ -399,10 +320,8 @@ if prompt := st.chat_input("E.g., Can I use Jio sim?"):
         title = " ".join(words[:6])
         st.session_state.session_title = title[:42]
 
-    # Show a spinner while waiting for the agent
     with st.spinner("Agent is retrieving FAQ answers..."):
         try:
-            # Call the local AgentCore server
             response = requests.post(
                 "http://localhost:8080/invocations",
                 json={
@@ -425,9 +344,7 @@ if prompt := st.chat_input("E.g., Can I use Jio sim?"):
         except Exception as e:
             answer = f" **An error occurred:** {str(e)}"
 
-    # Display assistant response in chat message container
-    with st.chat_message("assistant"):
+    with st.chat_message("assistant", avatar="🤖"):
         st.markdown(answer)
     
-    # Add assistant response to chat history
     st.session_state.messages.append({"role": "assistant", "content": answer})

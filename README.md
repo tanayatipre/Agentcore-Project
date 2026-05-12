@@ -1,4 +1,4 @@
-# Agentcore FAQ Assistant
+# Agentcore FAQ Database Assistant
 
 This project is a retrieval-augmented FAQ assistant for Jio customer care. It runs a local AgentCore runtime, queries a FAISS index built from a Jio FAQ dataset, and serves answers through an HTTP endpoint and an optional Streamlit UI.
 
@@ -14,7 +14,7 @@ This project is a retrieval-augmented FAQ assistant for Jio customer care. It ru
 
 ## Dataset
 
-The FAQ dataset comes from content extracted from the official Jio website (I have extracted it directly from the website, and didn't use any other tools for it) and is stored in `jio_faq.csv`. The vector index is built from this dataset and stored in `faiss_index/`.
+I'v extracted the FAQ dataset from the official Jio website (https://www.jio.com/) and it is stored in `jio_faq.csv`. The vector index is built from this dataset and stored in `faiss_index/`.
 
 ## The Workflow
 

@@ -1,12 +1,23 @@
-venv/
+# Virtual environment
+.venv/
+
+# Python cache
 __pycache__/
 *.pyc
+
 .env
-bedrock_agentcore/
-*.log
 
 neo_accessKeys.csv
 neo_credentials.csv
 TODO.md
-.venv
-.bedrock_agentcore/agent_with_memory/dependencies.zip
+
+faiss_index/
+
+.bedrock_agentcore/
+
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+*.log
