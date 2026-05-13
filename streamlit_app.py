@@ -2,7 +2,7 @@ import streamlit as st
 import requests
 import uuid
 
-st.set_page_config(page_title="FAQ Agent", page_icon="🔵", layout="centered", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="FAQ Agent", page_icon="💠", layout="centered", initial_sidebar_state="collapsed")
 
 with open("style.css") as f:
     st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
@@ -56,7 +56,7 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"], avatar=avatar_icon):
         st.markdown(msg["content"])
 
-if prompt := st.chat_input("E.g., Can I use Jio sim?"):
+if prompt := st.chat_input("Write a message"):
     with st.chat_message("user", avatar="👤"):
         st.markdown(prompt)
     st.session_state.messages.append({"role": "user", "content": prompt})
