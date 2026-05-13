@@ -13,36 +13,20 @@ import ssl
 import time
 import traceback
 
-os.environ["SSL_CERT_FILE"] = certifi.where()
-os.environ["REQUESTS_CA_BUNDLE"] = certifi.where()
-os.environ["CURL_CA_BUNDLE"] = certifi.where()
+def setup_ssl_environment():
+    """Set up SSL overrides required for certain network requests."""
+    os.environ["SSL_CERT_FILE"] = certifi.where()
+    os.environ["REQUESTS_CA_BUNDLE"] = certifi.where()
+    os.environ["CURL_CA_BUNDLE"] = certifi.where()
 
 # Load CSV
 
-def load_faq_csv(path: str) -> List[Document]:
-    docs = []
-    with open(path, "r", encoding="utf-8-sig") as f:
-        reader = csv.DictReader(f)
-
-        print("Columns:", reader.fieldnames)
-
-        for row in reader:
-            q = row.get("Question") or row.get("question")
-            a = row.get("Answer") or row.get("answer")
-
-            if not q or not a:
-                continue
-
-            docs.append(
-                Document(
-                    page_content=f"Q: {q.strip()}\nA: {a.strip()}"
-                )
-            )
-    return docs
+from utils import load_faq_csv
 
 # Main
 
 def main():
+    setup_ssl_environment()
     print('Loading CSV...')
     docs = load_faq_csv("./jio_faq.csv")
     

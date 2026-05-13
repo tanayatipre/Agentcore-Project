@@ -1,10 +1,7 @@
 import os
 from functools import lru_cache
 
-from langchain_core.tools import tool
-
-from langchain_community.vectorstores import FAISS
-from langchain_aws import BedrockEmbeddings
+from utils import tools
 
 from langchain_groq import ChatGroq
 
@@ -25,99 +22,12 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 # Load FAISS Index
 
-@lru_cache
-def get_vectorstore():
-    print("Loading embeddings...")
 
-    embeddings = BedrockEmbeddings(
-        model_id="amazon.titan-embed-text-v2:0",
-        region_name="us-east-1"
-    )
-
-    print("Loading FAISS index...")
-
-    vectorstore = FAISS.load_local(
-        "faiss_index",
-        embeddings,
-        allow_dangerous_deserialization=True
-    )
-
-    print("FAISS loaded")
-
-    return vectorstore
-
-
-# Tools (RAG-based)
-
-@tool
-def search_faq(query: str) -> str:
-    """Search FAQ data using semantic similarity."""
-
-    store = get_vectorstore()
-
-    results = store.similarity_search(query, k=3)
-
-    if not results:
-        return "No relevant FAQ entries found."
-
-    context = "\n\n---\n\n".join([
-        f"FAQ Entry {i+1}:\n{doc.page_content}"
-        for i, doc in enumerate(results)
-    ])
-
-    return f"Found {len(results)} relevant FAQ entries:\n\n{context}"
-
-
-@tool
-def search_detailed_faq(query: str, num_results: int = 5) -> str:
-    """Search FAQ with more results."""
-
-    store = get_vectorstore()
-
-    results = store.similarity_search(query, k=num_results)
-
-    if not results:
-        return "No relevant FAQ entries found."
-
-    context = "\n\n---\n\n".join([
-        f"FAQ Entry {i+1}:\n{doc.page_content}"
-        for i, doc in enumerate(results)
-    ])
-
-    return f"Found {len(results)} detailed FAQ entries:\n\n{context}"
-
-
-@tool
-def reformulate_query(original_query: str, focus_aspect: str) -> str:
-    """Reformulate query for a specific aspect and search."""
-
-    store = get_vectorstore()
-
-    reformulated = f"{focus_aspect} related to {original_query}"
-
-    results = store.similarity_search(reformulated, k=3)
-
-    if not results:
-        return f"No results found for aspect: {focus_aspect}"
-
-    context = "\n\n---\n\n".join([
-        f"Entry {i+1}:\n{doc.page_content}"
-        for i, doc in enumerate(results)
-    ])
-
-    return f"Results for '{focus_aspect}' aspect:\n\n{context}"
-
-
-tools = [
-    search_faq,
-    search_detailed_faq,
-    reformulate_query
-]
 
 # LLM
 
 model = ChatGroq(
-    model="openai/gpt-oss-20b",
+    model=os.getenv("LLM_MODEL_NAME", "openai/gpt-oss-20b"),
     temperature=0,
     api_key=GROQ_API_KEY
 )

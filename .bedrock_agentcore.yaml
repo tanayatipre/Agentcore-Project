@@ -92,7 +92,7 @@ agents:
     bedrock_agentcore:
       agent_id: agent_with_memory-WdunUiCYXm
       agent_arn: arn:aws:bedrock-agentcore:us-east-1:824708342420:runtime/agent_with_memory-WdunUiCYXm
-      agent_session_id: ac50981f-b987-4dee-98f0-68e8ce071d59
+      agent_session_id: null
     codebuild:
       project_name: null
       execution_role: null
