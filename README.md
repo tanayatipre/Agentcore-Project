@@ -1,6 +1,6 @@
 # Agentcore FAQ Database Assistant
 
-<img width="753" height="813" alt="Screenshot 2026-05-13 173433" src="https://github.com/user-attachments/assets/aa9cc6e4-5df0-4a48-8bd1-64f43d010e0a" />
+<img width="650" height="700" alt="Screenshot 2026-05-13 173433" src="https://github.com/user-attachments/assets/aa9cc6e4-5df0-4a48-8bd1-64f43d010e0a" />
 
 This project is a retrieval-augmented FAQ assistant for Jio customer care. It runs a local AgentCore runtime, queries a FAISS index built from a Jio FAQ dataset, and serves answers through an HTTP endpoint and an optional Streamlit UI.
 
@@ -25,7 +25,7 @@ I'v extracted the FAQ dataset from the official Jio website (https://www.jio.com
 3. Send prompts to the runtime via HTTP or through the Streamlit UI.
 4. The agent retrieves relevant FAQ entries from FAISS and uses the LLM to respond.
 
-<img width="1025" height="878" alt="Screenshot 2026-05-13 235512" src="https://github.com/user-attachments/assets/2a64aa27-b3a8-488a-a4a3-b8311f085eb6" />
+<img width="950" height="750" alt="Screenshot 2026-05-13 235512" src="https://github.com/user-attachments/assets/2a64aa27-b3a8-488a-a4a3-b8311f085eb6" />
 
 ## Runtime flow (API request)
 
